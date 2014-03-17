@@ -2710,42 +2710,52 @@ Score::FileError importGTP(Score* score, const QString& name)
             return Score::FILE_NOT_FOUND;
       if (!fp.open(QIODevice::ReadOnly))
             return Score::FILE_OPEN_ERROR;
-      uchar l;
-      fp.read((char*)&l, 1);
-      char ss[30];
-      fp.read(ss, 30);
-      ss[l] = 0;
-      QString s(ss);
-      if (s.startsWith("FICHIER GUITAR PRO "))
-            s = s.mid(20);
-      else if (s.startsWith("FICHIER GUITARE PRO "))
-            s = s.mid(21);
-      else {
-            qDebug("unknown gtp format <%s>\n", ss);
-            return Score::FILE_BAD_FORMAT;
-            }
 
-      int a = s.left(1).toInt();
-      int b = s.mid(2).toInt();
-      int version = a * 100 + b;
       GuitarPro* gp;
-
-      if (a == 1)
-            gp = new GuitarPro1(score, version);
-      if (a == 2)
-            gp = new GuitarPro2(score, version);
-      if (a == 3)
-            gp = new GuitarPro3(score, version);
-      else if (a == 4)
-            gp = new GuitarPro4(score, version);
-      else if (a == 5)
-            gp = new GuitarPro5(score, version);
-      else {
-            qDebug("unknown gtp format %d\n", version);
-            return Score::FILE_BAD_FORMAT;
-            }
-      try {
-            gp->read(&fp);
+      try   {
+            // check to see if we are dealing with a GPX file via the extension
+            if (name.endsWith(".gpx", Qt::CaseInsensitive)) {
+                  gp = new GuitarPro6(score);
+                  gp->read(&fp);
+                  fp.close();
+                  delete gp;
+                  return Score::FILE_NO_ERROR;
+                  }
+            // otherwise it's an older version - check the header
+            else  {
+                  uchar l;
+                  fp.read((char*)&l, 1);
+                  char ss[30];
+                  fp.read(ss, 30);
+                  ss[l] = 0;
+                  QString s(ss);
+                  if (s.startsWith("FICHIER GUITAR PRO "))
+                        s = s.mid(20);
+                  else if (s.startsWith("FICHIER GUITARE PRO "))
+                        s = s.mid(21);
+                  else {
+                        qDebug("unknown gtp format <%s>\n", ss);
+                        return Score::FILE_BAD_FORMAT;
+                        }
+                  int a = s.left(1).toInt();
+                  int b = s.mid(2).toInt();
+                  int version = a * 100 + b;
+                  if (a == 1)
+                        gp = new GuitarPro1(score, version);
+                  if (a == 2)
+                        gp = new GuitarPro2(score, version);
+                  if (a == 3)
+                        gp = new GuitarPro3(score, version);
+                  else if (a == 4)
+                        gp = new GuitarPro4(score, version);
+                  else if (a == 5)
+                        gp = new GuitarPro5(score, version);
+                  else {
+                        qDebug("unknown gtp format %d\n", version);
+                        return Score::FILE_BAD_FORMAT;
+                        }
+                        gp->read(&fp);
+                  }
             }
       catch(GuitarPro::GuitarProError errNo) {
             if (!MScore::noGui) {
@@ -2817,7 +2827,9 @@ Score::FileError importGTP(Score* score, const QString& name)
             if (bar.barLine != NORMAL_BAR)
                   m->setEndBarLineType(bar.barLine, false);
             }
-      score->lastMeasure()->setEndBarLineType(END_BAR, false);
+
+      if (score->lastMeasure())
+            score->lastMeasure()->setEndBarLineType(END_BAR, false);
 
       //
       // create parts (excerpts)
@@ -2914,5 +2926,245 @@ Score::FileError importGTP(Score* score, const QString& name)
       score->doLayout();
       return Score::FILE_NO_ERROR;
       }
+
+//---------------------------------------------------------
+//   readBit
+//---------------------------------------------------------
+
+int GuitarPro6::readBit() {
+      // calculate the byte index by dividing the position in bits by the bits per byte
+      int byteIndex = this->position / BITS_IN_BYTE;
+      // calculate our offset so we know how much to bit shift
+      int byteOffset = ((BITS_IN_BYTE-1) - (this->position % BITS_IN_BYTE));
+      // calculate the bit which we want to read
+      int bit = ((((*buffer)[byteIndex] & 0xff) >> byteOffset) & 0x01);
+      // increment our curent position so we know this bit has been read
+      this->position++;
+      // return the bit we calculated
+      return bit;
+      }
+
+
+//---------------------------------------------------------
+//   readBits
+//---------------------------------------------------------
+
+int GuitarPro6::readBits(int bitsToRead) {
+      int bits = 0;
+      // repeatedly call readBit and use bitwise or to collect
+      for (int i = (bitsToRead-1); i>=0; i--) {
+            bits |= (readBit() << i);
+            }
+      return bits;
+      }
+
+//---------------------------------------------------------
+//   readBitsReversed
+//---------------------------------------------------------
+
+int GuitarPro6::readBitsReversed(int bitsToRead) {
+      int bits = 0;
+      // repeatedly call readBit and use bitwise or to collect
+      for( int i = 0 ; i < bitsToRead ; i ++ ) {
+            bits |= (readBit() << i );
+            }
+      return bits;
+      }
+
+//---------------------------------------------------------
+//   getBytes
+//---------------------------------------------------------
+
+QByteArray GuitarPro6::getBytes(QByteArray* buffer, int offset, int length) {
+      QByteArray newBytes;
+      // compute new bytes from our buffer and return byte array
+      for (int i = 0; i < length; i++) {
+            if (buffer->length() > offset + i) {
+                  newBytes.insert(i, ((*buffer)[offset+i]));
+                  }
+            }
+      return newBytes;
+      }
+
+//---------------------------------------------------------
+//   readInteger
+//---------------------------------------------------------
+int GuitarPro6::readInteger(QByteArray* buffer, int offset) {
+      // assign four bytes and take them from the buffer
+      char bytes[4];
+      bytes[0] = (*buffer)[offset+0];
+      bytes[1] = (*buffer)[offset+1];
+      bytes[2] = (*buffer)[offset+2];
+      bytes[3] = (*buffer)[offset+3];
+      // increment positioning so we keep track of where we are
+      this->position+=sizeof(int)*BITS_IN_BYTE;
+      // bit shift in order to compute our integer value and return
+      return ((bytes[3] & 0xff) << 24) | ((bytes[2] & 0xff) << 16) | ((bytes[1] & 0xff) << 8) | (bytes[0] & 0xff);
+      }
+
+//---------------------------------------------------------
+//   readString
+//---------------------------------------------------------
+
+QByteArray GuitarPro6::readString(QByteArray* buffer, int offset, int length) {
+      QByteArray filename;
+      // compute the string by iterating through the buffer
+      for (int i = 0; i < length; i++) {
+            int charValue = (((*buffer)[offset + i]) & 0xff);
+            if (charValue == 0)
+                  break;
+            filename.push_back((char)charValue);
+      }
+      return filename;
 }
 
+//---------------------------------------------------------
+//   readGPX
+//---------------------------------------------------------
+
+void GuitarPro6::readGPX(QByteArray* buffer) {
+      // start by reading the file header. It will tell us if the byte array is compressed.
+      int fileHeader = readInteger(buffer, 0);
+
+      if (fileHeader == GPX_HEADER_COMPRESSED) {
+            // this is  a compressed file.
+            int length = readInteger(buffer, this->position/BITS_IN_BYTE);
+            QByteArray* bcfsBuffer = new QByteArray();
+            int positionCounter = 0;
+            while(!f->error() && (this->position/this->BITS_IN_BYTE) < length) {
+                  // read the bit indicating compression information
+                  int flag = this->readBits(1);
+
+                  if (flag) {
+                        int bits = this->readBits(4);
+                        int offs = this->readBitsReversed(bits);
+                        int size = this->readBitsReversed(bits);
+
+                        QByteArray bcfsBufferCopy = *bcfsBuffer;
+                        int pos = (bcfsBufferCopy.length() - offs );
+                        for( int i = 0; i < (size > offs ? offs : size) ; i ++ ) {
+                              bcfsBuffer->insert(positionCounter, bcfsBufferCopy[pos + i] ) ;
+                              positionCounter++;
+                              }
+                        }
+                  else  {
+                        int size = this->readBitsReversed(2);
+                        for(int i = 0; i < size; i ++ ) {
+                              bcfsBuffer->insert(positionCounter, this->readBits(8));
+                              positionCounter++;
+                              }
+                        }
+                  }
+             // recurse on the decompressed file stored as a byte array
+             readGPX(bcfsBuffer);
+            }
+      else if (fileHeader == GPX_HEADER_UNCOMPRESSED) {
+            // this is an uncompressed file - strip the header off
+            *buffer = buffer->right(buffer->length()-sizeof(int));
+            int sectorSize = 0x1000;
+            int offset = 0;
+            while ((offset = (offset + sectorSize)) + 3 < buffer->length()) {
+                  int newInt = readInteger(buffer,offset);
+                  if (newInt == 2) {
+                        int indexFileName = (offset + 4);
+                        int indexFileSize = (offset + 0x8C);
+                        int indexOfBlock = (offset + 0x94);
+
+                        // create a byte array and put information about files found in it
+                        int block = 0;
+                        int blockCount = 0;
+                        QByteArray* fileBytes = new QByteArray();
+                        while((block = (readInteger(buffer, (indexOfBlock + (4 * (blockCount ++)))))) != 0 ) {
+                              fileBytes->push_back(getBytes(buffer, (offset = (block*sectorSize)), sectorSize));
+                              }
+                        // get file information and read the file
+                        int fileSize = readInteger(buffer, indexFileSize);
+                        if (fileBytes->length() >= fileSize) {
+                              QByteArray filenameBytes = readString(buffer, indexFileName, 127);
+                              char* filename = filenameBytes.data();
+                              QByteArray data = getBytes(fileBytes, 0, fileSize);
+                              parseFile(filename, &data);
+                              }
+                        }
+                  }
+            }
+}
+
+//---------------------------------------------------------
+//   parseFile
+//---------------------------------------------------------
+
+void GuitarPro6::parseFile(char* filename, QByteArray* data)
+      {
+            qDebug("Parsing a file contained in GPX filesystem: %s", filename);
+
+            // test to check if we are dealing with the score
+            if (!strcmp(filename, "score.gpif")) {
+                  readScore(data);
+            }
+
+            // create dummy measure and stave for now, not parsed yet.
+            measures = 1;
+            GpBar bar;
+            bar.keysig = 0;
+            bars.append(bar);
+
+            staves = 1;
+            for (int staffIdx = 0; staffIdx < staves; ++staffIdx) {
+              Part* part = new Part(score);
+              Staff* s = new Staff(score, part, staffIdx);
+              part->insertStaff(s);
+              score->staves().push_back(s);
+              score->appendPart(part);
+            }
+
+      }
+
+void GuitarPro6::readScore(QByteArray* data) {
+      QDomDocument qdomDoc;
+      qdomDoc.setContent(*data);
+      QDomElement qdomElem = qdomDoc.documentElement();
+      // get the first child - GPRevision.
+      QDomNode node=qdomElem.firstChild();
+      // move to the next sibling to parse next tree - Score
+      QDomNode scoreNode=node.nextSibling();
+      // get the first child - Title
+      QDomNode titleNode = scoreNode.firstChild();
+      title = titleNode.toElement().text();
+      // get the next sibling - SubTitle
+      QDomNode subtitleNode = titleNode.nextSibling();
+      subtitle = subtitleNode.toElement().text();
+      // get the next sibling - Artist
+      QDomNode artistNode = subtitleNode.nextSibling();
+      qDebug() << "Artist detected : " << artistNode.toElement().text().toUtf8();
+      artist = artistNode.toElement().text();
+      // get the next sibling - Album
+      QDomNode albumNode = artistNode.nextSibling();
+      album = albumNode.toElement().text();
+}
+
+//---------------------------------------------------------
+//   read
+//---------------------------------------------------------
+
+void GuitarPro6::read(QFile* fp)
+      {
+      qDebug("reading guitar pro v6 file (.gpx)...");
+      f = fp;
+      this->buffer = new QByteArray();
+      *(this->buffer) = fp->readAll();
+      // decompress and read files contained within GPX file
+      readGPX(this->buffer);
+      createMeasures();
+      }
+
+//---------------------------------------------------------
+//   readBeatEffects
+//---------------------------------------------------------
+
+int GuitarPro6::readBeatEffects(int track, Segment*)
+      {
+      qDebug("reading beat effects (.gpx)...\n");
+      return 0;
+      }
+}
