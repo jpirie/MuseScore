@@ -23,6 +23,7 @@
 
 #include "libmscore/mscore.h"
 #include "libmscore/fraction.h"
+#include "libmscore/drumset.h"
 
 namespace Ms {
 
@@ -113,6 +114,7 @@ class GuitarPro {
       void readTremoloBar(int track, Segment*);
 
    public:
+      void initGuitarProDrumset();
       QString title, subtitle, artist, album, composer;
       QString transcriber, instructions;
       QStringList comments;
@@ -261,6 +263,8 @@ class GuitarPro6 : public GuitarPro {
       GuitarPro6(Score* s) : GuitarPro(s, 6) {}
       virtual void read(QFile*);
       };
+
+extern Drumset* gpDrumset;
 
 } // namespace Ms
 #endif

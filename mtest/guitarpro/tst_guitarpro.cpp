@@ -61,6 +61,7 @@ private slots:
       void gpDottedTuplets() { gpReadTest("dotted-tuplets", "gp5"); }
       void gpTupletSlur()    { gpReadTest("tuplet-with-slur", "gp4"); }
       void gpBeamsStemsLL()  { gpReadTest("beams-stems-ledger-lines", "gp5"); }
+      void gp5Percussion()   { gpReadTest("all-percussion", "gp5"); }
       };
 
 //---------------------------------------------------------
