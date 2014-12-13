@@ -242,6 +242,8 @@ class Element : public QObject {
             TEXTLINE_SEGMENT,
             VOLTA_SEGMENT,
             PEDAL_SEGMENT,
+            GLISSANDO_SEGMENT,
+            MELISMA_SEGMENT,
             LAYOUT_BREAK,
             SPACER,
             STAFF_STATE,

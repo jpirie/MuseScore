@@ -664,7 +664,7 @@ int GlissandoHandler::findChord(const Chord* c, int st) const
 
 void GlissandoHandler::doGlissandoStart(Chord* chord, Notations& notations, Xml& xml)
       {
-      Glissando::Type st = chord->glissando()->glissandoType();
+/*      Glissando::Type st = chord->glissando()->glissandoType();
       if (st != Glissando::Type::STRAIGHT && st != Glissando::Type::WAVY) {
             qDebug("doGlissandoStart: unknown glissando subtype %hhd", st);
             return;
@@ -685,7 +685,7 @@ void GlissandoHandler::doGlissandoStart(Chord* chord, Notations& notations, Xml&
             glissando(chord->glissando(), i + 1, true, notations, xml);
             }
       else
-            qDebug("doGlissandoStart: no free slot");
+            qDebug("doGlissandoStart: no free slot"); */
       }
 
 //---------------------------------------------------------
@@ -694,7 +694,7 @@ void GlissandoHandler::doGlissandoStart(Chord* chord, Notations& notations, Xml&
 
 void GlissandoHandler::doGlissandoStop(Chord* chord, Notations& notations, Xml& xml)
       {
-      Glissando::Type st = chord->glissando()->glissandoType();
+/*      Glissando::Type st = chord->glissando()->glissandoType();
       if (st != Glissando::Type::STRAIGHT && st != Glissando::Type::WAVY) {
             qDebug("doGlissandoStart: unknown glissando subtype %hhd", st);
             return;
@@ -711,7 +711,7 @@ void GlissandoHandler::doGlissandoStop(Chord* chord, Notations& notations, Xml& 
                   return;
                   }
             }
-      qDebug("doGlissandoStop: glissando chord %p not found", chord);
+      qDebug("doGlissandoStop: glissando chord %p not found", chord); */
       }
 
 //---------------------------------------------------------
@@ -2520,13 +2520,13 @@ void ExportMusicXml::chord(Chord* chord, int staff, const QList<Lyrics*>* ll, Dr
                   arpeggiate(chord->arpeggio(), note == nl.front(), note == nl.back(), xml, notations);
                   }
             // write glissando (only for last note)
-            Chord* ch = nextChord(chord);
+/*            Chord* ch = nextChord(chord);
             if ((note == nl.back()) && ch && ch->glissando()) {
                   gh.doGlissandoStart(ch, notations, xml);
                   }
             if (chord->glissando()) {
                   gh.doGlissandoStop(chord, notations, xml);
-                  }
+                  } */
             notations.etag(xml);
             // write lyrics (only for first note)
             if ((note == nl.front()) && ll)
